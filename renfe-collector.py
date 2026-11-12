@@ -1,4 +1,3 @@
-import logging
 import os, time, math, requests
 
 URL = "https://tiempo-real.largorecorrido.renfe.com/renfe-visor/flotaLD.json"
@@ -103,6 +102,21 @@ def unique_trains(vehicles):
     return sorted(by_id.values(), key=lambda v: v["vehicle_id"])
 
 
+def pairwise_distances(trains):
+    """Distancia en metros entre cada par de trenes: [(id_a, id_b, metros), ...] con id_a < id_b.
+
+    `trains` debe venir ya deduplicado y ordenado por vehicle_id (unique_trains).
+    """
+    result = []
+    for i in range(len(trains)):
+        a = trains[i]
+        for j in range(i + 1, len(trains)):
+            b = trains[j]
+            d = haversine(a["lat"], a["lon"], b["lat"], b["lon"])
+            result.append((a["vehicle_id"], b["vehicle_id"], d))
+    return result
+
+
 timestamp, vehicles = parse_vehicles(fetch_raw())
 trains = unique_trains(vehicles)
 print(f"timestamp={timestamp} | trenes={len(trains)}")
@@ -111,4 +125,9 @@ for t in trains:
     delay = "-" if t["delay_min"] is None else f"{t['delay_min']} min"
     print(f"{t['vehicle_id']:<7}{t['lat']:>10.5f}{t['lon']:>11.5f}{delay:>9}  "
           f"{t['next_stop_id'] or '-':<8}{t['next_arrival'] or '-'}")
+
+distances = pairwise_distances(trains)
+print(f"\npares={len(distances)} | los 10 más cercanos:")
+for a, b, d in sorted(distances, key=lambda x: x[2])[:10]:
+    print(f"{a} - {b}: {d:.0f} m")
 
