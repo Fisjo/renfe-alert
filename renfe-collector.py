@@ -102,3 +102,13 @@ def unique_trains(vehicles):
             by_id.setdefault(v["vehicle_id"], v)  # me quedo con el primero
     return sorted(by_id.values(), key=lambda v: v["vehicle_id"])
 
+
+timestamp, vehicles = parse_vehicles(fetch_raw())
+trains = unique_trains(vehicles)
+print(f"timestamp={timestamp} | trenes={len(trains)}")
+print(f"{'tren':<7}{'lat':>10}{'lon':>11}{'retraso':>9}  {'sig.est':<8}llegada")
+for t in trains:
+    delay = "-" if t["delay_min"] is None else f"{t['delay_min']} min"
+    print(f"{t['vehicle_id']:<7}{t['lat']:>10.5f}{t['lon']:>11.5f}{delay:>9}  "
+          f"{t['next_stop_id'] or '-':<8}{t['next_arrival'] or '-'}")
+
