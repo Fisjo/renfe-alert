@@ -71,3 +71,28 @@ def save_train_state(conn, trains):
     with conn.transaction(), conn.cursor() as cur:
         cur.executemany(UPSERT_SQL, rows)
     return len(rows)
+
+
+def load_train_state(conn, max_age_s=300):
+    """Lee train_state con el mismo formato que devuelve parse_vehicles
+    (next_arrival en ISO de Madrid sin zona, position_time en epoch).
+    Ignora trenes que el collector no actualiza desde hace `max_age_s` segundos
+    (trenes que ya no salen en el feed)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT vehicle_id, mat, lat, lon, prev_stop_id, next_stop_id, next_arrival,"
+            " delay_min, origin, destination, position_time FROM train_state"
+            " WHERE updated_at > now() - make_interval(secs => %s)"
+            " ORDER BY vehicle_id",
+            (max_age_s,),
+        )
+        cols = [c.name for c in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    for r in rows:
+        arrival = r["next_arrival"]
+        r["next_arrival"] = (
+            arrival.astimezone(MADRID).replace(tzinfo=None).isoformat() if arrival else None
+        )
+        pos = r["position_time"]
+        r["position_time"] = int(pos.timestamp()) if pos else None
+    return rows

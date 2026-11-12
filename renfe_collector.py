@@ -1,4 +1,4 @@
-import os, time, math, requests
+import os, sys, time, math, requests
 from collections import namedtuple
 from datetime import datetime
 from itertools import combinations
@@ -203,6 +203,22 @@ def distances_same_route(trains, **kw):
     return distances_within_groups(groups, **kw)
 
 
+def poll_forever():
+    """Consulta el feed cada POLL_SECONDS y guarda el estado en la BD."""
+    while True:
+        started = time.monotonic()
+        try:
+            _, vehicles = parse_vehicles(fetch_raw())
+            trains = unique_trains(vehicles)
+            if trains:
+                with db.connect() as conn:
+                    saved = db.save_train_state(conn, trains)
+                print(f"{datetime.now():%H:%M:%S} guardados {saved} trenes")
+        except Exception as e:  # el bucle no debe morir por un fallo puntual
+            print(f"Error en la consulta: {e}")
+        time.sleep(max(0, POLL_SECONDS - (time.monotonic() - started)))
+
+
 def main():
     timestamp, vehicles = parse_vehicles(fetch_raw())
     trains = unique_trains(vehicles)
@@ -229,5 +245,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if "--loop" in sys.argv:
+        poll_forever()
+    else:
+        main()
 

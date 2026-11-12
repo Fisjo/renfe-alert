@@ -346,8 +346,8 @@ footer code { font-family: var(--font-mono); font-size: 12px; }
   </footer>
 </div>
 
-<script src="dashboard-data.js"></script>
 <script>
+function startDashboard() {
 (function () {
   "use strict";
   var D = window.RENFE_DATA;
@@ -775,6 +775,17 @@ footer code { font-family: var(--font-mono); font-size: 12px; }
   renderKpis();
   render();
 })();
+}
+
+// Datos en vivo desde la API; si no responde, se usa la foto estática.
+fetch("/api/trains")
+  .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(function (d) { window.RENFE_DATA = d; startDashboard(); }, function () {
+    var el = document.createElement("script");
+    el.src = "dashboard-data.js";
+    el.onload = el.onerror = startDashboard;
+    document.head.appendChild(el);
+  });
 </script>
 </body>
 </html>
