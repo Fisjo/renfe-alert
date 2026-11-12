@@ -3,6 +3,8 @@ from collections import namedtuple
 from datetime import datetime
 from itertools import combinations
 
+import db
+
 MAX_POSITION_SKEW_S = 30     # máx. diferencia entre las horas de posición de dos trenes
 MAX_ROUTE_PAIR_M = 100_000   # en "mismo origen y destino", ignorar pares más lejos de esto
 
@@ -204,6 +206,11 @@ def distances_same_route(trains, **kw):
 def main():
     timestamp, vehicles = parse_vehicles(fetch_raw())
     trains = unique_trains(vehicles)
+
+    with db.connect() as conn:
+        saved = db.save_train_state(conn, trains)
+    print(f"Guardados {saved} trenes en train_state")
+
     print(f"timestamp={timestamp} | trenes={len(trains)}")
     print(f"{'tren':<7}{'lat':>10}{'lon':>11}{'retraso':>9}  {'sig.est':<8}llegada")
     for t in trains:
