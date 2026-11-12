@@ -340,9 +340,9 @@ footer code { font-family: var(--font-mono); font-size: 12px; }
   </section>
 
   <footer>
-    <div>Fuente: <code>flotaLD.json</code> de Renfe, tal como lo lee <code>renfe-collector.py</code>. Una foto, no un histórico: cada tren aparece una vez.</div>
+    <div>Fuente: <code>flotaLD.json</code> de Renfe, tal como lo lee <code>renfe-collector.py</code> y lo guarda en la base de datos. El panel se actualiza solo cada 15 s; cada tren aparece una vez.</div>
     <div>El feed da códigos de estación, no nombres. Los adelantos cuentan como retraso 0 en la media.</div>
-    <div>Para actualizar los datos, sustituye <code>dashboard-data.js</code> por una foto nueva y recarga la página.</div>
+    <div>Si la API no está disponible, se muestra la foto de <code>dashboard-data.js</code>.</div>
   </footer>
 </div>
 
@@ -378,19 +378,24 @@ function startDashboard() {
   function binOf(d) { for (var i = 0; i < BINS.length; i++) if (BINS[i].test(d)) return BINS[i]; return BINS[1]; }
 
   /* ---------- datos ---------- */
-  var ALERT = D.alert_distance;
-  var trains = D.trains;
-  var byId = {};
-  trains.forEach(function (t) { byId[t.vehicle_id] = t; });
-  var MODES = {
-    segment: { label: "Mismo tramo", pairs: D.same_segment.pairs, dropped: D.same_segment.dropped,
-      note: "Entre la misma estación anterior y siguiente." },
-    route: { label: "Mismo origen y destino", pairs: D.same_route.pairs, dropped: D.same_route.dropped,
-      note: "Mismo origen y destino, hasta " + nf0.format(D.max_route_pair_m / 1000) + " km." }
-  };
-  Object.keys(MODES).forEach(function (k) {
-    MODES[k].pairs.forEach(function (p) { p.key = p.a + "|" + p.b; });
-  });
+  var ALERT, trains, byId, MODES;
+  function loadData(data) {
+    D = data;
+    ALERT = D.alert_distance;
+    trains = D.trains;
+    byId = {};
+    trains.forEach(function (t) { byId[t.vehicle_id] = t; });
+    MODES = {
+      segment: { label: "Mismo tramo", pairs: D.same_segment.pairs, dropped: D.same_segment.dropped,
+        note: "Entre la misma estación anterior y siguiente." },
+      route: { label: "Mismo origen y destino", pairs: D.same_route.pairs, dropped: D.same_route.dropped,
+        note: "Mismo origen y destino, hasta " + nf0.format(D.max_route_pair_m / 1000) + " km." }
+    };
+    Object.keys(MODES).forEach(function (k) {
+      MODES[k].pairs.forEach(function (p) { p.key = p.a + "|" + p.b; });
+    });
+  }
+  loadData(D);
 
   /* ---------- estado ---------- */
   var state = {
@@ -768,24 +773,54 @@ function startDashboard() {
 
   function render() { renderMap(); renderDetail(); renderPairs(); renderHist(); renderChip(); }
 
-  /* ---------- arranque ---------- */
+  /* ---------- arranque y actualización ---------- */
+  var fmtStamp = new Intl.DateTimeFormat("es-ES", { dateStyle: "long", timeStyle: "medium", timeZone: "Europe/Madrid" });
+  function paintStamp(live) {
+    var when = new Date(D.timestamp * 1000);
+    $("stamp").innerHTML = (live === false ? "Sin conexión · últimos datos" : live ? "En vivo · cada " + POLL_MS / 1000 + " s" : "Foto de datos") +
+      "<br><b>" + fmtStamp.format(when) + "</b>";
+  }
+  function refresh(data, live) {
+    loadData(data);
+    // conserva lo que el usuario tenía seleccionado si el tren sigue existiendo
+    if (!byId[state.selected]) { state.selected = null; state.pair = null; }
+    $("legAlert").textContent = ALERT;
+    paintStamp(live);
+    renderKpis();
+    render();
+  }
+  window.updateDashboard = function (data, live) { if (data.trains.length) refresh(data, live); };
+  window.markOffline = function () { paintStamp(false); };
   $("legAlert").textContent = ALERT;
-  var when = new Date(D.timestamp * 1000);
-  $("stamp").innerHTML = "Foto de datos<br><b>" + new Intl.DateTimeFormat("es-ES", { dateStyle: "long", timeStyle: "medium", timeZone: "Europe/Madrid" }).format(when) + "</b>";
+  paintStamp(window.RENFE_LIVE);
   renderKpis();
   render();
 })();
 }
 
-// Datos en vivo desde la API; si no responde, se usa la foto estática.
-fetch("/api/trains")
-  .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-  .then(function (d) { window.RENFE_DATA = d; startDashboard(); }, function () {
+// Datos en vivo desde la API, refrescados cada POLL_MS. Si la API no responde
+// al cargar, se usa la foto estática y se sigue intentando.
+var POLL_MS = 15000;
+var started = false;
+
+function fetchTrains() {
+  return fetch("/api/trains").then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+}
+function tick() {
+  fetchTrains().then(function (d) {
+    if (!d.trains.length) throw new Error("sin datos recientes");
+    if (!started) { window.RENFE_DATA = d; window.RENFE_LIVE = true; startDashboard(); started = true; }
+    else window.updateDashboard(d, true);
+  }, function () {
+    if (started) return window.markOffline();
     var el = document.createElement("script");
     el.src = "dashboard-data.js";
-    el.onload = el.onerror = startDashboard;
+    el.onload = el.onerror = function () { window.RENFE_LIVE = false; startDashboard(); started = true; };
     document.head.appendChild(el);
   });
+}
+tick();
+setInterval(tick, POLL_MS);
 </script>
 </body>
 </html>
