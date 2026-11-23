@@ -211,7 +211,9 @@ def poll_forever():
             if trains:
                 with db.connect() as conn:
                     saved = db.save_train_state(conn, trains)
-                print(f"{datetime.now():%H:%M:%S} guardados {saved} trenes")
+                    removed = db.delete_stale(conn)
+                print(f"{datetime.now():%H:%M:%S} guardados {saved} trenes"
+                      + (f", borrados {removed} obsoletos" if removed else ""))
         except Exception as e:  # el bucle no debe morir por un fallo puntual
             print(f"Error en la consulta: {e}")
         time.sleep(max(0, POLL_SECONDS - (time.monotonic() - started)))

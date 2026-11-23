@@ -7,9 +7,11 @@ from psycopg.types.json import Jsonb
 
 # Desde tu Mac el puerto es el 5434 (ver docker-compose.yml).
 DATABASE_URL = os.environ.get(
-    "DATABASE_URL", "postgresql://renfe:cambiame@localhost:5434/renfe"
+    "DATABASE_URL", "postgresql://renfe:renfe@localhost:5434/renfe"
 )
 MADRID = ZoneInfo("Europe/Madrid")
+# Un tren que el collector no actualiza desde hace tanto ya no sale en el feed.
+STALE_AFTER_S = 300
 
 
 def connect():
@@ -73,7 +75,18 @@ def save_train_state(conn, trains):
     return len(rows)
 
 
-def load_train_state(conn, max_age_s=300):
+def delete_stale(conn, max_age_s=STALE_AFTER_S):
+    """Borra los trenes que el collector no actualiza desde hace `max_age_s`
+    segundos. Devuelve cuántas filas se borraron."""
+    with conn.transaction(), conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM train_state WHERE updated_at <= now() - make_interval(secs => %s)",
+            (max_age_s,),
+        )
+        return cur.rowcount
+
+
+def load_train_state(conn, max_age_s=STALE_AFTER_S):
     """Lee train_state con el mismo formato que devuelve parse_vehicles
     (next_arrival en ISO de Madrid sin zona, position_time en epoch).
     Ignora trenes que el collector no actualiza desde hace `max_age_s` segundos

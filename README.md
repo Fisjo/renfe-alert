@@ -57,8 +57,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # 2. Configuración
-cp .env.example .env            # cambia la contraseña si quieres
-export DATABASE_URL=postgresql://renfe:cambiame@localhost:5434/renfe
+cp .env.example .env            # contraseña por defecto: renfe
+export DATABASE_URL=postgresql://renfe:renfe@localhost:5434/renfe
 
 # 3. Base de datos
 docker compose up -d
@@ -75,7 +75,7 @@ Abre <http://localhost:8000>. La documentación interactiva de la API está en
 
 > **Nota:** el código no lee `.env` por sí mismo; solo Docker Compose lo usa. Por eso hay que
 > exportar `DATABASE_URL` en cada terminal. Si no se define, `db.py` usa
-> `postgresql://renfe:cambiame@localhost:5434/renfe`, que coincide con `.env.example`.
+> `postgresql://renfe:renfe@localhost:5434/renfe`, que coincide con `.env.example`.
 
 ### Modo de una sola consulta
 
@@ -83,11 +83,37 @@ Abre <http://localhost:8000>. La documentación interactiva de la API está en
 datos e imprime en consola la tabla de trenes y los pares más cercanos. Es útil para
 depurar sin dejar un proceso en marcha.
 
+## Cómo probar el panel
+
+1. Arranca Docker Desktop y comprueba que la base de datos está levantada:
+   `docker compose ps` debe mostrar `db` como *running*.
+2. En la **terminal 1** (con el entorno virtual activado y `DATABASE_URL` exportada) lanza la
+   recogida: `python renfe_collector.py --loop`. Debe imprimir cada 15 s una línea como
+   `16:13:50 guardados 104 trenes`.
+3. En la **terminal 2**, con las mismas condiciones, lanza la API: `uvicorn api:app`.
+4. Comprueba la API: `curl localhost:8000/api/health` debe devolver `{"ok":true}`.
+5. Abre <http://localhost:8000> en el navegador. Debes ver:
+   - el texto «En vivo · cada 15 s» con la fecha y hora de la última posición;
+   - cuatro KPIs arriba y el mapa de España con ~100 puntos de colores;
+   - la tabla de parejas a la derecha, con pestañas «Mismo tramo» y «Mismo origen y destino».
+6. Pruébalo:
+   - pulsa un punto del mapa para abrir su ficha;
+   - pulsa una fila de la tabla: el mapa hace zoom sobre los dos trenes;
+   - pulsa una columna del histograma de retrasos para filtrar el mapa;
+   - escribe un número de tren en el buscador;
+   - usa la rueda del ratón para el zoom y arrastra para mover el mapa.
+7. Espera 15 s: la hora del panel debe avanzar sola sin recargar.
+8. **Prueba de fallo**: para el collector (`Ctrl+C`) y, tras 5 minutos, los trenes dejan de
+   aparecer. Para la API y recarga el panel: muestra «Foto de datos» con los datos de
+   `dashboard-data.js`.
+9. Para apagar todo: `Ctrl+C` en ambas terminales y `docker compose down`
+   (añade `-v` si quieres borrar también los datos).
+
 ## Configuración
 
 | Variable / constante | Dónde | Valor por defecto | Significado |
 |---|---|---|---|
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | `.env` | `renfe` / `cambiame` / `renfe` | Credenciales del contenedor |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | `.env` | `renfe` / `renfe` / `renfe` | Credenciales del contenedor |
 | `POSTGRES_PORT` | `.env` | `5434` | Puerto expuesto en tu máquina |
 | `DATABASE_URL` | entorno | ver arriba | Cadena de conexión que usan collector y API |
 | `ALERT_DISTANCE` | `renfe_collector.py` | `500` m | Por debajo de esta distancia una pareja se marca como alerta |
@@ -169,9 +195,9 @@ Respuesta de `/api/trains`:
 }
 ```
 
-La API solo devuelve trenes actualizados en los últimos 5 minutos (`max_age_s` en
-`load_train_state`); los que dejan de aparecer en el feed desaparecen de la respuesta, aunque
-su fila siga en la tabla.
+La API solo devuelve trenes actualizados en los últimos 5 minutos (`STALE_AFTER_S` en
+`db.py`); los que dejan de aparecer en el feed desaparecen de la respuesta y, con el collector
+en marcha, también de la tabla.
 
 ## Base de datos
 
@@ -179,7 +205,8 @@ Una sola tabla, `train_state`, con **una fila por tren** que se sobrescribe en c
 (`INSERT … ON CONFLICT DO UPDATE`, todo en una transacción). Además de las columnas
 normalizadas guarda el registro original completo en `raw` (JSONB), por si Renfe cambia el
 formato o se quieren campos que hoy no se usan (`product_code`, `accessible`). `updated_at`
-marca cuándo escribió el collector, y es lo que permite descartar trenes obsoletos.
+marca cuándo escribió el collector. En cada ciclo, el modo `--loop` borra las filas con más de
+5 minutos sin actualizar (`delete_stale`), así que la tabla solo contiene los trenes del feed actual.
 
 ## El panel
 
