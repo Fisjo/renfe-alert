@@ -340,7 +340,7 @@ footer code { font-family: var(--font-mono); font-size: 12px; }
   </section>
 
   <footer>
-    <div>Fuente: <code>flotaLD.json</code> de Renfe, tal como lo lee <code>renfe-collector.py</code> y lo guarda en la base de datos. El panel se actualiza solo cada 15 s; cada tren aparece una vez.</div>
+    <div>Fuente: <code>flotaLD.json</code> de Renfe, tal como lo lee <code>renfe_collector.py</code> y lo guarda en la base de datos. El panel se actualiza solo cada 15 s; cada tren aparece una vez.</div>
     <div>El feed da códigos de estación, no nombres. Los adelantos cuentan como retraso 0 en la media.</div>
     <div>Si la API no está disponible, se muestra la foto de <code>dashboard-data.js</code>.</div>
   </footer>
@@ -624,7 +624,7 @@ function startDashboard() {
 
   function renderMap() {
     var paired = pairedSet();
-    var dots = "", i;
+    var dots = "";
     var vis = {};
     trains.forEach(function (t) {
       var ok = visible(t, paired); vis[t.vehicle_id] = ok;

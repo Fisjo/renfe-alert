@@ -1,4 +1,4 @@
-import os, sys, time, math, requests
+import sys, time, math, requests
 from collections import namedtuple
 from datetime import datetime
 from itertools import combinations
@@ -12,8 +12,6 @@ URL ="https://tiempo-real.largorecorrido.renfe.com/renfe-visor/flotaLD.json"
 ALERT_DISTANCE = 500
 POLL_SECONDS = 15
 TIMEOUT = 10
-
-SAMPLE_FILE = "./sample-file"
 
 EARTH_RADIUS_M = 6371000
 

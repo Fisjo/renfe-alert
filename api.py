@@ -1,4 +1,4 @@
-from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +7,10 @@ import psycopg
 
 import db
 import renfe_collector as rc
+
+BASE = Path(__file__).parent
+DASHBOARD = BASE / "dashboard.html"
+SNAPSHOT = BASE / "dashboard-data.js"
 
 
 def _pairs_payload(pairs, dropped):
@@ -69,4 +73,10 @@ def train(vehicle_id: str):
 
 @app.get("/")
 def index():
-    return FileResponse("dashboard.html")
+    return FileResponse(DASHBOARD)
+
+
+@app.get("/dashboard-data.js")
+def snapshot():
+    """Foto estática que el panel usa si la API no devuelve datos."""
+    return FileResponse(SNAPSHOT, media_type="text/javascript")

@@ -7,7 +7,7 @@ from psycopg.types.json import Jsonb
 
 # Desde tu Mac el puerto es el 5434 (ver docker-compose.yml).
 DATABASE_URL = os.environ.get(
-    "DATABASE_URL", "postgresql://renfe:renfe@localhost:5434/renfe"
+    "DATABASE_URL", "postgresql://renfe:cambiame@localhost:5434/renfe"
 )
 MADRID = ZoneInfo("Europe/Madrid")
 
